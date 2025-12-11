@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寶可夢成長知識大挑戰</title>
+    <!-- 載入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 設定 Tailwind CSS 配置，確保使用 Inter 字體 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                    },
+                },
+            }
+        }
+    </script>
+    <!-- 載入 Tone.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        /* 確保字體在不同系統下的一致性 */
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- 應用程式內容將由 JavaScript 渲染到這裡 -->
+</div>
+
+<script>
+    // --- 核心應用程式邏輯 (純 JavaScript) ---
+
+    // 遊戲狀態
+    const state = {
+        currentQuestions: [],
+        currentQIndex: 0,
+        score: 0,
+        gameState: 'start', // 'start', 'playing', 'answer', 'end'
+        selectedAnswer: null,
+        isCorrect: null,
+        timer: 0,
+        intervalId: null,
+        correctSynth: null,
+        wrongSynth: null,
+        NUM_QUESTIONS: 10
+    };
+
+    // --- 專屬題庫：結合寶可夢元素 (高鈣與健康主題) ---
+    const quizData = [
+        // Q1-Q5: 核心成長知識，使用寶可夢比喻
+        { id: 1, question: "寶可夢要讓牠的骨骼像大岩蛇（Onix）一樣堅硬，必須同時服用哪兩種「超級能量方塊」？", options: ["糖果和汽水", "鈣質和維生素 D", "脂肪和鹽", "蛋白質和水"], answer: "鈣質和維生素 D", explanation: "鈣質是骨骼的基石，維生素 D 就像訓練師，能幫助身體吸收鈣質，是進化強壯骨骼的必備組合！", category: "高鈣營養" },
+        { id: 2, question: "哪一種行為能讓你的身體像太陽伊布（Espeon）一樣，利用陽光自行製造出能幫助吸收鈣質的「進化催化劑」？", options: ["整天待在室內", "每天適度曬太陽", "晚上不睡覺", "多喝咖啡"], answer: "每天適度曬太陽", explanation: "曬太陽能啟動身體的特殊能力，免費合成維生素 D，這對鈣質吸收非常重要！", category: "生活" },
+        { id: 3, question: "想讓寶可夢的肌肉像怪力（Machamp）一樣強壯有力，牠需要大量攝取哪種「力量積木」？", options: ["只有糖", "蛋白質（如蛋、魚、豆腐）", "只有水", "汽水"], answer: "蛋白質（如蛋、魚、豆腐）", explanation: "蛋白質是肌肉修復和成長的基礎。沒有足夠的積木，寶可夢無法練成怪力的肌肉。", category: "營養" },
+        { id: 4, question: "哪種運動能給予骨骼適當的「進化刺激」，讓牠們長得更高更快？", options: ["靜止不動", "有跳躍、跑動的活動 (如跳繩、籃球)", "舉很重的東西", "長時間躺著"], answer: "有跳躍、跑動的活動 (如跳繩、籃球)", explanation: "骨骼需要適度的衝擊才能得到刺激，這就像寶可夢戰鬥一樣，戰鬥（運動）才能變強（長高）。", category: "運動" },
+        { id: 5, question: "寶可夢的「進化藥水」（生長激素）會在什麼時候大量生成？", options: ["剛起床時", "深夜進入熟睡期", "飽餐一頓後", "運動結束時"], answer: "深夜進入熟睡期", explanation: "深度睡眠是身體分泌進化藥水的黃金時間，千萬不要熬夜錯過喔！", category: "生活" },
+        
+        // Q6-Q20: 通用成長知識，用語維持趣味性
+        { id: 6, question: "哪種食物是提供優質蛋白質，有助於肌肉與身體組織生長的最佳來源？", options: ["精製麵包", "豆腐、雞蛋、魚肉", "甜點與果汁", "蔬菜油"], answer: "豆腐、雞蛋、魚肉", explanation: "蛋白質是身體所有細胞和肌肉生長的基礎，優質蛋白質能提供身體所需的完整養分。", category: "營養" },
+        { id: 7, question: "哪種飲料會干擾身體對鈣質的吸收，建議減少飲用？", options: ["白開水", "牛奶", "汽水或含咖啡因的飲料", "純果汁"], answer: "汽水或含咖啡因的飲料", explanation: "這些飲品中的特定成分可能會導致鈣質流失，影響骨骼健康，阻礙進化！", category: "營養" },
+        { id: 8, question: "如果不愛喝牛奶，可以多吃哪種食物來補充鈣質？", options: ["餅乾和蛋糕", "深綠色的蔬菜（如芥藍菜、莧菜）", "巧克力", "白飯"], answer: "深綠色的蔬菜（如芥藍菜、莧菜）", explanation: "許多深綠色蔬菜含有豐富的鈣質，是乳製品之外的優良選擇，就像另一種進化石。", category: "高鈣營養" },
+        { id: 9, question: "在成長發育期，每天一定要記得補充的是什麼？", options: ["大量的零食", "充足的水分", "大量的油炸食物", "維生素 K"], answer: "充足的水分", explanation: "水是身體運輸所有營養、進行新陳代謝的關鍵，對所有生理活動都非常重要。", category: "營養" },
+        { id: 10, question: "長期處於緊張或高壓狀態，對身體成長有什麼影響？", options: ["極度有利，能刺激鬥志", "有弊，壓力會干擾正常的成長機制", "沒有任何影響", "只影響情緒"], answer: "有弊，壓力會干擾正常的成長機制", explanation: "長期的壓力會讓身體分泌壓力荷爾蒙，這可能會間接影響身體的自然成長進度。", category: "生活" },
+        { id: 11, question: "對於兒童和青少年來說，一整天中建議的睡眠時數是？", options: ["4-6 小時", "9-11 小時", "7-8 小時", "隨意即可"], answer: "9-11 小時", explanation: "充足的休息時間才能讓身體有足夠的時間修復與成長。", category: "生活" },
+        { id: 12, question: "晚餐應該在睡前多久吃完，才不會影響夜間的成長活動？", options: ["立刻吃完就睡", "睡前 3-4 小時", "睡前 1 小時", "隨時都可以"], answer: "睡前 3-4 小時", explanation: "睡前讓肚子消化完畢，身體才能專注於分泌成長所需的物質。", category: "生活" },
+        { id: 13, question: "運動後，為了幫助肌肉修復和身體成長，應該優先補充哪兩種營養素？", options: ["大量的糖果", "富含蛋白質和少量碳水化合物的食物", "純脂肪", "咖啡"], answer: "富含蛋白質和少量碳水化合物的食物", explanation: "蛋白質用於修復受損肌肉，碳水化合物用於補充消耗的能量，是運動後的最佳組合。", category: "運動" },
+        { id: 14, question: "以下哪項因素對決定最終身高影響最大？", options: ["遺傳基因", "飲食習慣", "每天有沒有喝牛奶", "出生地"], answer: "遺傳基因", explanation: "基因決定了身高的潛力範圍，但後天的生活習慣（營養、運動、睡眠）能決定你是否能達到這個潛力。", category: "知識" },
+        { id: 15, question: "哪種運動對改善體態、拉伸脊柱最有利，能讓我們看起來更高更挺拔？", options: ["長時間坐在電腦前", "游泳或伸展運動（如瑜珈）", "舉重", "電玩遊戲"], answer: "游泳或伸展運動（如瑜珈）", explanation: "這些運動有助於強化核心，改善駝背，保持良好的成長姿勢。", category: "運動" },
+        { id: 16, question: "為了避免因書包壓力影響脊椎，正確的背負方式是？", options: ["單肩背負", "雙肩背負，並調整背帶使其緊貼背部", "將書包拿在手上", "背很鬆，讓書包掉到腰下"], answer: "雙肩背負，並調整背帶使其緊貼背部", explanation: "這樣可以平均分散重量，保護正在發育的脊椎，避免不良姿勢。", category: "生活" },
+        { id: 17, question: "長期熬夜對成長最大的負面影響是什麼？", options: ["食慾不振", "擾亂身體夜間分泌成長物質的節奏", "體重減輕", "記憶力下降"], answer: "擾亂身體夜間分泌成長物質的節奏", explanation: "熬夜會讓你在分泌黃金期錯過成長機會。", category: "生活" },
+        { id: 18, question: "在成長發育期，應盡量避免攝取過多的食物類型是？", options: ["深綠色蔬菜", "高糖分和高油炸食物", "適量的肉類", "水"], answer: "高糖分和高油炸食物", explanation: "這些食物缺乏成長所需的重要營養素，過度攝取會影響整體健康與發育。", category: "營養" },
+        { id: 19, question: "哪種行為模式最能確保良好的睡眠品質？", options: ["睡前玩手機遊戲", "睡前進行劇烈運動", "建立規律的睡眠時間表", "喝咖啡"], answer: "建立規律的睡眠時間表", explanation: "規律的作息有助於校準生理時鐘，讓身體在固定的時間進入深度睡眠，利於成長。", category: "生活" },
+        { id: 20, question: "對於乳糖不耐或不喝牛奶的人來說，哪種飲品是很好的鈣質替代來源？", options: ["汽水", "黑咖啡", "鈣強化豆漿或燕麥奶", "純果汁"], answer: "鈣強化豆漿或燕麥奶", explanation: "這些植物奶通常會經過人工強化，使其鈣含量與牛奶相似，是優秀的「替代進化石」。", category: "高鈣營養" },
+    ];
+
+    // --- Tone.js 音效處理 ---
+
+    function initTone() {
+        if (typeof Tone === 'undefined') {
+            console.error("Tone.js 尚未載入。");
+            return;
+        }
+
+        // 初始化答對音效合成器 (三角形波)
+        state.correctSynth = new Tone.Synth({
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0.0, release: 0.1 }
+        }).toDestination();
+        
+        // 初始化答錯音效合成器 (方波)
+        state.wrongSynth = new Tone.Synth({
+            oscillator: { type: "square" },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0.0, release: 0.2 }
+        }).toDestination();
+        
+        console.log("Tone.js 合成器初始化成功。");
+    }
+
+    function playFeedback(isCorrect) {
+        if (!state.correctSynth || !state.wrongSynth || typeof Tone === 'undefined') return;
+
+        // 啟動音訊上下文 (每次使用者互動時都檢查並嘗試啟動)
+        if (Tone.context.state !== 'running') {
+            Tone.start().catch(err => console.error("無法啟動音訊上下文:", err));
+        }
+
+        if (isCorrect) {
+            // 答對音效：C5, E5, G5 上行三和弦 (Evolution Sound!)
+            state.correctSynth.triggerAttackRelease("C5", "8n");
+            state.correctSynth.triggerAttackRelease("E5", "8n", Tone.now() + 0.05);
+            state.correctSynth.triggerAttackRelease("G5", "8n", Tone.now() + 0.1);
+        } else {
+            // 答錯音效：C3, B2 下行音 (Missed Attack)
+            state.wrongSynth.triggerAttackRelease("C3", "16n");
+            state.wrongSynth.triggerAttackRelease("B2", "16n", Tone.now() + 0.1);
+        }
+    }
+
+    // --- 遊戲流程控制 ---
+
+    function startTimer() {
+        if (state.intervalId) {
+            clearInterval(state.intervalId);
+        }
+        state.intervalId = setInterval(() => {
+            state.timer++;
+            render(); // 更新計時器顯示
+        }, 1000);
+    }
+
+    function stopTimer() {
+        if (state.intervalId) {
+            clearInterval(state.intervalId);
+            state.intervalId = null;
+        }
+    }
+
+    function startQuiz() {
+        stopTimer();
+        
+        // 隨機選題
+        const shuffled = [...quizData].sort(() => 0.5 - Math.random());
+        state.currentQuestions = shuffled.slice(0, state.NUM_QUESTIONS);
+        
+        // 重設狀態
+        state.currentQIndex = 0;
+        state.score = 0;
+        state.timer = 0;
+        state.selectedAnswer = null;
+        state.isCorrect = null;
+        state.gameState = 'playing';
+
+        // 嘗試啟動音訊上下文
+        if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+            Tone.start().catch(err => console.error("無法啟動音訊上下文:", err));
+        }
+        startTimer();
+        
+        render();
+    }
+
+    function handleAnswerSelect(answer) {
+        if (state.gameState !== 'playing') return;
+
+        // 替換 ' (單引號) 確保與 onclick 傳入的字串匹配
+        const safeAnswer = answer.replace(/\\'/g, "'"); 
+        
+        const currentQ = state.currentQuestions[state.currentQIndex];
+        const correct = safeAnswer === currentQ.answer;
+
+        state.selectedAnswer = safeAnswer;
+        state.isCorrect = correct;
+        state.gameState = 'answer';
+
+        playFeedback(correct);
+
+        if (correct) {
+            state.score++;
+        }
+
+        render();
+    }
+
+    function nextQuestion() {
+        if (state.currentQIndex < state.NUM_QUESTIONS - 1) {
+            state.currentQIndex++;
+            state.selectedAnswer = null;
+            state.isCorrect = null;
+            state.gameState = 'playing';
+        } else {
+            stopTimer();
+            state.gameState = 'end';
+        }
+        render();
+    }
+    
+    // --- 渲染畫面函式 ---
+
+    function getStartScreenHtml() {
+        return `
+            <div class="bg-white p-8 md:p-12 rounded-3xl shadow-[0_0_60px_rgba(59,130,246,0.7)] text-center max-w-md w-full border-b-8 border-blue-500">
+                <h1 class="text-5xl font-black text-blue-600 mb-2 tracking-wider flex items-center justify-center">
+                    <span class="text-6xl mr-2">🌟</span> 寶可夢進化挑戰
+                </h1>
+                <p class="text-gray-600 text-lg mb-6 font-bold">
+                    我是進化大使，考考你對「進化」的知識！
+                </p>
+                <div class="bg-yellow-50 p-4 rounded-xl border-4 border-yellow-400 mb-8 text-left shadow-inner">
+                    <p class="text-gray-700 font-extrabold mb-1 flex items-center">
+                        <span class="text-2xl mr-2">💡</span> 訓練師任務:
+                    </p>
+                    <ul class="text-sm text-gray-600 list-disc list-inside space-y-1 ml-4">
+                        <li>總共有 ${state.NUM_QUESTIONS} 個「進化秘訣」挑戰。</li>
+                        <li>答對可以得到「進化石碎片」！</li>
+                        <li>集滿知識，讓身體成功「進化」成最健康型態！</li>
+                    </ul>
+                </div>
+                <button
+                    onclick="startQuiz()"
+                    class="w-full bg-red-600 hover:bg-red-700 text-white text-2xl font-black py-4 rounded-xl shadow-[0_5px_20px_rgba(239,68,68,0.6)] transition transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                    開始特訓！ (Start)
+                </button>
+            </div>
+        `;
+    }
+
+    function getQuizScreenHtml() {
+        const currentQ = state.currentQuestions[state.currentQIndex];
+        const isAnswered = state.gameState === 'answer';
+        const progressPercent = ((state.currentQIndex + 1) / state.NUM_QUESTIONS) * 100;
+        
+        let optionsHtml = currentQ.options.map((option, index) => {
+            let buttonClasses = "w-full text-left py-4 px-5 border-4 rounded-xl text-lg font-bold transition duration-300 shadow-lg flex items-center";
+            let isSelected = state.selectedAnswer === option;
+
+            if (isAnswered) {
+                if (option === currentQ.answer) {
+                    buttonClasses += " bg-green-500 border-green-700 text-white shadow-green-400/80 transform scale-[1.01]";
+                } else if (isSelected) {
+                    buttonClasses += " bg-red-500 border-red-700 text-white shadow-red-400/80 line-through opacity-70";
+                } else {
+                    buttonClasses += " bg-gray-100 border-gray-300 text-gray-500";
+                }
+            } else {
+                buttonClasses += " bg-white border-blue-400 text-gray-800 hover:bg-blue-50 active:scale-[0.99] hover:shadow-blue-300/50";
+            }
+            
+            // 對選項字串進行轉義，確保 onclick 中的單引號不會中斷字串
+            const safeOption = option.replace(/'/g, "\\'"); 
+
+            return `
+                <button
+                    class="${buttonClasses}"
+                    onclick="handleAnswerSelect('${safeOption}')"
+                    ${isAnswered ? 'disabled' : ''}
+                >
+                    <span class="mr-3 font-mono text-xl">${String.fromCharCode(65 + index)}.</span>
+                    ${option}
+                </button>
+            `;
+        }).join('');
+        
+        let feedbackHtml = '';
+        if (isAnswered) {
+            const feedbackClass = state.isCorrect ? 'bg-green-100 border-green-600' : 'bg-red-100 border-red-600';
+            const feedbackText = state.isCorrect ? '✅ 完美命中！獲得進化石碎片！' : '❌ 沒關係，這次攻擊落空了！';
+            const nextButtonText = state.currentQIndex < state.NUM_QUESTIONS - 1 ? '下一回合 >>' : '查看最終進化結果 >>';
+
+            feedbackHtml = `
+                <div class="mt-8">
+                    <div class="p-5 rounded-xl border-l-8 ${feedbackClass} mb-6 shadow-md">
+                        <p class="font-extrabold text-xl mb-2 flex items-center text-gray-800">
+                            ${feedbackText}
+                        </p>
+                        <p class="text-sm text-gray-700">
+                            **訓練師秘訣:** ${currentQ.explanation}
+                        </p>
+                    </div>
+                    
+                    <button
+                        onclick="nextQuestion()"
+                        class="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-xl font-black py-4 rounded-xl shadow-[0_5px_15px_rgba(255,215,0,0.5)] transition duration-300 transform active:scale-[0.98]"
+                    >
+                        ${nextButtonText}
+                    </button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="bg-white shadow-[0_0_50px_rgba(59,130,246,0.5)] rounded-3xl w-full max-w-xl p-6 md:p-10 border-t-8 border-blue-500">
+                
+                <!-- 頂部資訊欄 -->
+                <div class="mb-6 flex justify-between items-center text-gray-700 bg-red-50 p-3 rounded-xl border-2 border-red-200">
+                    <span class="text-xl font-black text-red-600 flex items-center">
+                        <span class="text-3xl mr-2">⚔️</span> 挑戰 ${state.currentQIndex + 1} / ${state.NUM_QUESTIONS}
+                    </span>
+                    <span class="text-lg font-mono bg-blue-500 text-white px-3 py-1 rounded-full shadow-lg">
+                        ⏱️ ${state.timer}s
+                    </span>
+                    <span class="text-xl font-black text-yellow-600 flex items-center">
+                        <span class="text-3xl mr-1">💎</span> 碎片: ${state.score}
+                    </span>
+                </div>
+
+                <!-- 進度條 -->
+                <div class="w-full bg-gray-200 rounded-full h-3 mb-8">
+                    <div 
+                        class="bg-green-500 h-3 rounded-full transition-all duration-500 shadow-md shadow-green-300" 
+                        style="width: ${progressPercent}%;">
+                    </div>
+                </div>
+
+                <!-- 問題區 -->
+                <h2 class="text-2xl font-extrabold mb-8 text-gray-900 border-l-4 border-yellow-500 pl-4 leading-relaxed bg-yellow-50 p-4 rounded-lg shadow-inner">
+                    ${currentQ.question}
+                </h2>
+
+                <!-- 選項區 -->
+                <div class="space-y-4 mb-8">
+                    ${optionsHtml}
+                </div>
+
+                <!-- 答案解析與下一題按鈕 -->
+                ${feedbackHtml}
+            </div>
+        `;
+    }
+
+    function getEndScreenHtml() {
+        const score = state.score;
+        const total = state.NUM_QUESTIONS;
+        const time = state.timer;
+        const percentage = ((score / total) * 100).toFixed(0);
+        let message, rating, color;
+
+        if (score === total) {
+            rating = "🏆 恭喜進化！ (Master Trainer)";
+            message = "🎉 你的寶可夢已完全進化！你掌握了所有健康成長的知識！";
+            color = "text-yellow-500 border-yellow-500";
+        } else if (score >= total * 0.8) {
+            rating = "🎖️ 準進化大師 (Elite Trainer)";
+            message = "👍 表現優異！只需一點點訓練，就能完全進化！";
+            color = "text-green-500 border-green-500";
+        } else if (score >= total * 0.6) {
+            rating = "🌟 認真訓練師 (Dedicated Trainer)";
+            message = "🙂 表現不錯！請繼續專注於營養與運動的特訓！";
+            color = "text-blue-500 border-blue-500";
+        } else {
+            rating = "🌱 菜鳥訓練師 (Rookie)";
+            message = "🤔 沒關係，多複習幾次進化秘訣，下次一定能成功！";
+            color = "text-red-500 border-red-500";
+        }
+
+        return `
+            <div class="bg-white p-8 md:p-12 rounded-3xl shadow-[0_0_50px_rgba(255,0,0,0.5)] text-center max-w-md w-full border-t-8 border-red-500">
+                <div class="text-6xl mb-4">${score === total ? '🥇' : '🎉'}</div>
+                <h2 class="text-3xl font-black text-gray-800 mb-4">進化挑戰報告</h2>
+                
+                <p class="text-2xl font-extrabold mb-6 ${color} p-2 border-b-4">${rating}</p>
+
+                <div class="bg-gray-100 p-6 rounded-xl space-y-3 mb-8 border border-gray-300 shadow-inner">
+                    <p class="text-xl font-bold text-gray-700">獲得碎片: <span class="text-green-600 text-2xl">${score} / ${total}</span></p>
+                    <p class="text-4xl font-extrabold text-blue-700">進化度: ${percentage}%</p>
+                    <p class="text-sm text-gray-500">總訓練時間: ${time} 秒</p>
+                </div>
+                
+                <p class="text-lg text-gray-700 mb-8 font-medium">${message}</p>
+
+                <button
+                    onclick="startQuiz()"
+                    class="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-xl font-black py-3 rounded-xl shadow-lg transition transform active:scale-[0.98]"
+                >
+                    再特訓一次！ (新回合)
+                </button>
+            </div>
+        `;
+    }
+
+    function render() {
+        const appContainer = document.getElementById('app');
+        if (!appContainer) return;
+
+        let content = '';
+        switch (state.gameState) {
+            case 'start':
+                content = getStartScreenHtml();
+                break;
+            case 'playing':
+            case 'answer':
+                content = getQuizScreenHtml();
+                break;
+            case 'end':
+                content = getEndScreenHtml();
+                break;
+            default:
+                content = getStartScreenHtml();
+        }
+        
+        // 將內容包裹在主佈局容器中
+        appContainer.innerHTML = `
+            <div class="min-h-screen bg-gray-900 p-4 flex items-center justify-center font-sans">
+                ${content}
+            </div>
+        `;
+    }
+
+    // 頁面加載完成後執行初始化
+    window.onload = function() {
+        // 延遲初始化 Tone.js 以確保 CDN 載入完成
+        setTimeout(() => {
+            initTone();
+            render(); // 初始渲染
+        }, 100); 
+    };
+</script>
+
+</body>
+</html>
